@@ -20,7 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 DB_PATH = "gym_athletes.db"
 
-# ---------- ساخت پایگاه داده ----------
+# ---------- پایگاه داده ----------
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -33,24 +33,25 @@ def init_db():
             full_name TEXT,
             telegram_contact TEXT,
             age TEXT,
+            job TEXT,
+            goal TEXT,
+            training_history TEXT,
             weight TEXT,
             height TEXT,
             neck_cm TEXT,
             waist_cm TEXT,
             gender TEXT,
             hip_cm TEXT,
-            job TEXT,
-            goal TEXT,
-            training_history TEXT,
             weekly_sessions_limit TEXT,
+            meal_times TEXT,
             training_time TEXT,
             joint_issues TEXT,
-            meal_times TEXT,
             digestive_issues TEXT,
-            sleep_status TEXT,
-            diet_adherence_percent TEXT,
             egg_capacity TEXT,
             chicken_preference TEXT,
+            prev_program TEXT,
+            sleep_status TEXT,
+            diet_adherence_percent TEXT,
             photo_front_id TEXT,
             photo_side_id TEXT,
             photo_back_id TEXT,
@@ -60,39 +61,40 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ---------- وضعیت‌های فرم ----------
+# ---------- وضعیت‌های فرم (State Machine) ----------
 (
     PACKAGE,
     FULL_NAME,
     TG_CONTACT,
     AGE,
+    JOB,
+    GOAL,
+    TRAINING_HISTORY,
     WEIGHT,
     HEIGHT,
     NECK,
     WAIST,
     GENDER,
     HIP_OPT,
-    JOB,
-    GOAL,
-    TRAINING_HISTORY,
     WEEKLY_LIMIT,
+    MEAL_TIMES,
     TRAINING_TIME,
     JOINT_ISSUES,
-    MEAL_TIMES,
     DIGESTIVE_ISSUES,
-    SLEEP_STATUS,
-    DIET_ADHERENCE,
     EGG_CAPACITY,
     CHICKEN_PREF,
+    PREV_PROGRAM,
+    SLEEP_STATUS,
+    DIET_ADHERENCE,
     PHOTO_FRONT,
     PHOTO_SIDE,
     PHOTO_BACK,
-) = range(25)
+) = range(26)
 
 def kb(rows):
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=True)
 
-# ---------- نقطه شروع ----------
+# ---------- شروع ربات ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
@@ -123,11 +125,9 @@ async def pick_package(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return PACKAGE
 
     context.user_data["package"] = pkg
-    context.user_data["step"] = 1
-
     await update.message.reply_text(
         f"✅ {pkg} انتخاب شد.\n\n"
-        "مرحله ۱: لطفاً **نام و نام خانوادگی** خود را وارد فرمایید:",
+        "لطفاً **نام و نام خانوادگی** خود را وارد فرمایید:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
@@ -136,40 +136,68 @@ async def pick_package(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def full_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
     await update.message.reply_text(
-        "مرحله ۲: لطفاً **شماره تماس** (به انگلیسی مانند 09123456789) یا **آیدی تلگرام** خود را ارسال کنید:",
+        "لطفاً **شماره تماس یا آیدی تلگرام به لاتین** خود را ارسال کنید (مثال: 09123456789 یا @username):",
         parse_mode="Markdown"
     )
     return TG_CONTACT
 
 async def tg_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["telegram_contact"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۳: **سن** خود را وارد کنید (به عدد):", parse_mode="Markdown")
+    await update.message.reply_text("لطفاً **سن** خود را وارد کنید (به عدد):", parse_mode="Markdown")
     return AGE
 
 async def age(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["age"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۴: **وزن فعلی** خود را وارد کنید (کیلوگرم):", parse_mode="Markdown")
+    
+    pkg = context.user_data.get("package")
+    # برای برنامه غذایی، سوال بعدی شغل است؛ برای بقیه هم در ادامه شغل می‌آید
+    await update.message.reply_text("لطفاً **شغل** خود را بنویسید:", parse_mode="Markdown")
+    return JOB
+
+async def job(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["job"] = update.message.text.strip()
+    
+    pkg = context.user_data.get("package")
+    if pkg == "برنامه غذایی":
+        # در برنامه غذایی، بعد از شغل می‌رود سراغ هدف (اگر کاربر بخواهد) یا مستقیم سابقه تمرین
+        await update.message.reply_text("لطفاً **هدف اصلی** خود را بنویسید:", parse_mode="Markdown")
+        return GOAL
+    
+    await update.message.reply_text("لطفاً **هدف اصلی** خود را بنویسید (مثال: چربی‌سوزی، عضله‌سازی):", parse_mode="Markdown")
+    return GOAL
+
+async def goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["goal"] = update.message.text.strip()
+    await update.message.reply_text(
+        "آیا **سابقه تمرینی منظم** دارید؟ (مثال: ۲ سال سابقه پیوسته یا خیر تازه‌کارم):",
+        parse_mode="Markdown"
+    )
+    return TRAINING_HISTORY
+
+async def training_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["training_history"] = update.message.text.strip()
+    await update.message.reply_text("لطفاً **وزن فعلی** خود را وارد کنید (کیلوگرم):", parse_mode="Markdown")
     return WEIGHT
 
 async def weight(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["weight"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۵: **قد** خود را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
+    await update.message.reply_text("لطفاً **قد** خود را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
     return HEIGHT
 
 async def height(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["height"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۶: اندازه **دور گردن (زیر حنجره)** را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
+    await update.message.reply_text("اندازه **دور گردن (زیر حنجره)** را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
     return NECK
 
 async def neck(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["neck_cm"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۷: اندازه **دور کمر (روی ناف)** را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
+    await update.message.reply_text("اندازه **دور کمر (روی ناف)** را وارد کنید (سانتی‌متر):", parse_mode="Markdown")
     return WAIST
 
 async def waist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["waist_cm"] = update.message.text.strip()
     await update.message.reply_text(
-        "مرحله ۸: لطفاً **جنسیت** را مشخص کنید:",
+        "لطفاً **جنسیت** خود را مشخص کنید:",
         reply_markup=kb([["آقا", "خانم"]]),
         parse_mode="Markdown"
     )
@@ -184,76 +212,99 @@ async def gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["gender"] = g
     if g == "خانم":
         await update.message.reply_text(
-            "مرحله ۹: اندازه **دور باسن** را وارد کنید (سانتی‌متر):",
+            "اندازه **دور باسن** را وارد کنید (سانتی‌متر):",
             reply_markup=ReplyKeyboardRemove(),
             parse_mode="Markdown"
         )
         return HIP_OPT
 
     context.user_data["hip_cm"] = "ندارد (آقا)"
-    await update.message.reply_text(
-        "مرحله ۹: لطفاً **شغل** خود را بنویسید:",
-        reply_markup=ReplyKeyboardRemove(),
-        parse_mode="Markdown"
-    )
-    return JOB
+    return await route_after_hip(update, context)
 
 async def hip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["hip_cm"] = update.message.text.strip()
-    await update.message.reply_text("مرحله ۱۰: لطفاً **شغل** خود را بنویسید:", parse_mode="Markdown")
-    return JOB
+    return await route_after_hip(update, context)
 
-async def job(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["job"] = update.message.text.strip()
-    step_num = 11 if context.user_data.get("gender") == "خانم" else 10
-    await update.message.reply_text(f"مرحله {step_num}: لطفاً **هدف اصلی** خود را بنویسید (مثال: چربی‌سوزی، عضله‌سازی، تناسب اندام):", parse_mode="Markdown")
-    return GOAL
+async def route_after_hip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pkg = context.user_data.get("package")
+    
+    if pkg == "برنامه تمرینی":
+        await update.message.reply_text(
+            "چه **محدودیتی در تعداد جلسات هفتگی** دارید؟ (مثال: حداکثر ۴ جلسه در هفته):",
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        return WEEKLY_LIMIT
+    
+    elif pkg == "برنامه غذایی":
+        await update.message.reply_text(
+            "تعداد جلسات تمرین در هفته در برنامه تمرینی شما چند جلسه است؟",
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        return WEEKLY_LIMIT
+        
+    else: # پکیج کامل
+        await update.message.reply_text(
+            "چه **محدودیتی در تعداد جلسات هفتگی** دارید؟",
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        return WEEKLY_LIMIT
 
-async def goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["goal"] = update.message.text.strip()
+async def weekly_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["weekly_sessions_limit"] = update.message.text.strip()
     pkg = context.user_data.get("package")
 
-    # مسیر مستقیم برای پکیج غذایی (رد کردن تمرین)
-    if pkg == "برنامه غذایی":
-        step_num = 12 if context.user_data.get("gender") == "خانم" else 11
+    if pkg == "برنامه تمرینی":
         await update.message.reply_text(
-            f"مرحله {step_num}: تایم و ساعت **وعده‌های غذایی** روزمره شما چگونه است؟ (مثال: صبحانه ۹، ناهار ۱۴، شام ۲۱):",
+            "آیا **مشکلات یا آسیب‌های مفصلی** دارید؟ (در صورت نداشتن، دکمه «ندارم» را بزنید):",
+            reply_markup=kb([["ندارم"]]),
+            parse_mode="Markdown"
+        )
+        return JOINT_ISSUES
+
+    elif pkg == "برنامه غذایی":
+        await update.message.reply_text(
+            "تایم و ساعت **وعده‌های غذایی و تمرین** خود را بنویسید:",
+            reply_markup=ReplyKeyboardRemove(),
             parse_mode="Markdown"
         )
         return MEAL_TIMES
 
-    # مسیر پکیج تمرینی و پکیج کامل
-    step_num = 12 if context.user_data.get("gender") == "خانم" else 11
-    await update.message.reply_text(
-        f"مرحله {step_num}: آیا **سابقه تمرینی منظم** دارید؟ (مثال: ۲ سال سابقه پیوسته یا خیر تازه‌کارم):",
-        parse_mode="Markdown"
-    )
-    return TRAINING_HISTORY
+    else: # پکیج کامل
+        await update.message.reply_text(
+            "تایم و ساعت **وعده‌های غذایی** روزمره شما چگونه است؟",
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        return MEAL_TIMES
 
-# ---------- مراحل تمرین ----------
-async def training_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["training_history"] = update.message.text.strip()
-    step_num = 13 if context.user_data.get("gender") == "خانم" else 12
-    await update.message.reply_text(
-        f"مرحله {step_num}: چه **محدودیتی در تعداد جلسات هفتگی** دارید؟ (مثال: حداکثر ۴ جلسه در هفته):",
-        parse_mode="Markdown"
-    )
-    return WEEKLY_LIMIT
+# ---------- شاخه‌های اختصاصی ادامه مسیر ----------
+async def meal_times(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["meal_times"] = update.message.text.strip()
+    pkg = context.user_data.get("package")
 
-async def weekly_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["weekly_sessions_limit"] = update.message.text.strip()
-    step_num = 14 if context.user_data.get("gender") == "خانم" else 13
+    if pkg == "برنامه غذایی":
+        await update.message.reply_text(
+            "آیا **مشکلات گوارشی** دارید؟ (مثل نفخ، سوزش معده، یا دکمه «ندارم»):",
+            reply_markup=kb([["ندارم"]]),
+            parse_mode="Markdown"
+        )
+        return DIGESTIVE_ISSUES
+
+    # برای پکیج کامل
     await update.message.reply_text(
-        f"مرحله {step_num}: معمولاً چه **ساعتی از روز تمرین** می‌کنید؟ (مثال: ۱۸ تا ۲۰ شب):",
+        "تایم **تمرین** شما چه ساعتی است؟",
+        reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
     return TRAINING_TIME
 
 async def training_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["training_time"] = update.message.text.strip()
-    step_num = 15 if context.user_data.get("gender") == "خانم" else 14
     await update.message.reply_text(
-        f"مرحله {step_num}: آیا **مشکلات یا آسیب‌های مفصلی/عضلانی** دارید؟ (در صورت نداشتن، دکمه «ندارم» را بزنید):",
+        "آیا **مشکلات مفصلی و گوارشی** دارید؟ (در صورت نداشتن، «ندارم» بزنید):",
         reply_markup=kb([["ندارم"]]),
         parse_mode="Markdown"
     )
@@ -263,56 +314,28 @@ async def joint_issues(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["joint_issues"] = update.message.text.strip()
     pkg = context.user_data.get("package")
 
-    # اگر فقط پکیج تمرینی بود، سوالات تغذیه رد می‌شود و می‌رود سراغ عکس‌ها
     if pkg == "برنامه تمرینی":
+        # در برنامه تمرینی بعد از مشکلات مفصلی می‌رود سراغ عکس‌ها
         await update.message.reply_text(
-            "📸 **مرحله ارسال تصاویر بدنی**\n\n"
-            "لطفاً **عکس بدن از روبرو (Front)** را ارسال فرمایید:",
+            "📸 **مرحله ارسال تصاویر بدنی**\n\nلطفاً **عکس بدن از روبرو (Front)** را ارسال فرمایید:",
             reply_markup=ReplyKeyboardRemove(),
             parse_mode="Markdown"
         )
         return PHOTO_FRONT
 
-    # برای پکیج کامل
-    step_num = 16 if context.user_data.get("gender") == "خانم" else 15
+    # برای پکیج کامل می‌رود سراغ تغذیه و عادات
     await update.message.reply_text(
-        f"مرحله {step_num}: تایم و ساعت **وعده‌های غذایی** روزمره شما چگونه است؟ (مثال: صبحانه ۹، ناهار ۱۴، شام ۲۱):",
+        "تعداد سفیده و زرده تخم‌مرغ مصرفی در یک وعده چقدر است؟",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
-    return MEAL_TIMES
-
-# ---------- مراحل تغذیه ----------
-async def meal_times(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["meal_times"] = update.message.text.strip()
-    await update.message.reply_text(
-        "آیا **مشکلات گوارشی** دارید؟ (مثل نفخ، سوزش معده، عدم تحمل لاکتوز، یا دکمه «ندارم»):",
-        reply_markup=kb([["ندارم"]]),
-        parse_mode="Markdown"
-    )
-    return DIGESTIVE_ISSUES
+    return EGG_CAPACITY
 
 async def digestive_issues(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["digestive_issues"] = update.message.text.strip()
     await update.message.reply_text(
-        "**وضعیت خواب** شما چطور است؟ (ساعت معمول خوابیدن و بیداری و کیفیت خواب):",
+        "تعداد سفیده و زرده تخم‌مرغ مصرفی در یک وعده چقدر است؟",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode="Markdown"
-    )
-    return SLEEP_STATUS
-
-async def sleep_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["sleep_status"] = update.message.text.strip()
-    await update.message.reply_text(
-        "**درصد رعایت رژیم غذایی** در دوره‌های قبلی شما چقدر بوده است؟ (از ۰ تا ۱۰۰ درصد):",
-        parse_mode="Markdown"
-    )
-    return DIET_ADHERENCE
-
-async def diet_adherence(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["diet_adherence_percent"] = update.message.text.strip()
-    await update.message.reply_text(
-        "در یک وعده توانایی مصرف چه تعداد **سفیده و زرده تخم‌مرغ** را دارید؟ (مثال: ۴ سفیده + ۱ زرده):",
         parse_mode="Markdown"
     )
     return EGG_CAPACITY
@@ -328,23 +351,58 @@ async def egg_capacity(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def chicken_pref(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pref = update.message.text.strip()
-    if pref not in ["سینه", "ران", "فرقی ندارد"]:
-        await update.message.reply_text(
-            "لطفاً یکی از گزینه‌های کیبورد را انتخاب کنید:",
-            reply_markup=kb([["سینه", "ران", "فرقی ندارد"]])
-        )
-        return CHICKEN_PREF
-
     context.user_data["chicken_preference"] = pref
+    
+    pkg = context.user_data.get("package")
+    if pkg == "برنامه غذایی":
+        await update.message.reply_text(
+            "برنامه غذایی دوره قبل خود را بنویسید (یا بنویسید نداشته‌ام):",
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        return PREV_PROGRAM
+        
+    # پکیج کامل
     await update.message.reply_text(
-        "📸 **مرحله ارسال تصاویر بدنی**\n\n"
-        "لطفاً **عکس بدن از روبرو (Front)** را ارسال فرمایید:",
+        "برنامه تمرینی و غذایی دوره قبل خود را بنویسید:",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="Markdown"
+    )
+    return PREV_PROGRAM
+
+async def prev_program(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["prev_program"] = update.message.text.strip()
+    pkg = context.user_data.get("package")
+
+    if pkg == "برنامه غذایی":
+        # برنامه غذایی عکس بدن ندارد، کار تمام است!
+        return await save_and_finish(update, context)
+
+    # پکیج کامل ادامه می‌دهد به خواب و رعایت رژیم و سپس عکس‌ها
+    await update.message.reply_text(
+        "وضعیت خواب شما چگونه است؟",
+        parse_mode="Markdown"
+    )
+    return SLEEP_STATUS
+
+async def sleep_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["sleep_status"] = update.message.text.strip()
+    await update.message.reply_text(
+        "درصد رعایت رژیم غذایی در دوره قبل چقدر بوده است؟ (از ۰ تا ۱۰۰):",
+        parse_mode="Markdown"
+    )
+    return DIET_ADHERENCE
+
+async def diet_adherence(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["diet_adherence_percent"] = update.message.text.strip()
+    await update.message.reply_text(
+        "📸 **مرحله ارسال تصاویر بدنی**\n\nلطفاً **عکس بدن از روبرو (Front)** را ارسال فرمایید:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
     return PHOTO_FRONT
 
-# ---------- ارسال عکس‌ها و ذخیره در دیتابیس ----------
+# ---------- دریافت عکس‌ها ----------
 async def photo_front(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
         await update.message.reply_text("لطفاً حتماً عکس ارسال فرمایید:")
@@ -353,34 +411,4 @@ async def photo_front(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("عکس اول دریافت شد! لطفاً **عکس بدن از نیم‌رخ (Side)** را بفرستید:", parse_mode="Markdown")
     return PHOTO_SIDE
 
-async def photo_side(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("لطفاً حتماً عکس ارسال فرمایید:")
-        return PHOTO_SIDE
-    context.user_data["photo_side_id"] = update.message.photo[-1].file_id
-    await update.message.reply_text("عکس دوم دریافت شد! لطفاً **عکس بدن از پشت (Back)** را ارسال فرمایید:", parse_mode="Markdown")
-    return PHOTO_BACK
-
-async def photo_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("لطفاً حتماً عکس ارسال فرمایید:")
-        return PHOTO_BACK
-    context.user_data["photo_back_id"] = update.message.photo[-1].file_id
-
-    u = context.user_data
-    user = update.effective_user
-
-    # ذخیره مشخصات در دیتابیس SQLite
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO athletes (
-                user_id, username, package,
-                full_name, telegram_contact, age, weight, height,
-                neck_cm, waist_cm, gender, hip_cm, job, goal,
-                training_history, weekly_sessions_limit, training_time, joint_issues,
-                meal_times, digestive_issues, sleep_status, diet_adherence_percent,
-                egg_capacity, chicken_preference,
-                photo_front_id, photo_side_id, photo_back_id
-            ) 
+async def photo_side(update: Update, context: ContextTypes
